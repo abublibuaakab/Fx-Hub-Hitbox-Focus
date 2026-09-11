@@ -1,0 +1,8 @@
+print("Olá, Roblox!")
+print("Eu sou um script bobo 😭")
+print("Hello ScriptBlox!")
+
+while true do
+    print("KKKK")
+    task.wait(1)
+end
