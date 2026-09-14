@@ -1,8 +1,188 @@
-print("Olá, Roblox!")
-print("Eu sou um script bobo 😭")
-print("Hello ScriptBlox!")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
 
-while true do
-    print("KKKK")
-    task.wait(1)
+local Config = {
+    Box = true,
+    Name = true,
+    Health = true,
+    Distance = true,
+    TeamCheck = false,
+    MaxDistance = 500,
+    BoxColor = Color3.fromRGB(0, 255, 0),
+    EnemyColor = Color3.fromRGB(255, 50, 50),
+    NameColor = Color3.fromRGB(255, 255, 255),
+    DistanceColor = Color3.fromRGB(200, 200, 200),
+    TextSize = 14,
+}
+
+local Drawings = {}
+
+local function create(player)
+    if player == LocalPlayer then return end
+    Drawings[player] = {
+        Box = Drawing.new("Square"),
+        BoxOutline = Drawing.new("Square"),
+        Name = Drawing.new("Text"),
+        Distance = Drawing.new("Text"),
+        HealthBar = Drawing.new("Square"),
+        HealthOutline = Drawing.new("Square"),
+    }
+    local d = Drawings[player]
+    d.Box.Thickness = 1
+    d.Box.Filled = false
+    d.Box.Transparency = 1
+    d.Box.Visible = false
+    d.BoxOutline.Thickness = 3
+    d.BoxOutline.Filled = false
+    d.BoxOutline.Transparency = 0.5
+    d.BoxOutline.Color = Color3.new(0, 0, 0)
+    d.BoxOutline.Visible = false
+    d.Name.Size = Config.TextSize
+    d.Name.Center = true
+    d.Name.Outline = true
+    d.Name.OutlineColor = Color3.new(0, 0, 0)
+    d.Name.Color = Config.NameColor
+    d.Name.Font = Drawing.Fonts.UI
+    d.Name.Visible = false
+    d.Distance.Size = Config.TextSize - 2
+    d.Distance.Center = true
+    d.Distance.Outline = true
+    d.Distance.OutlineColor = Color3.new(0, 0, 0)
+    d.Distance.Color = Config.DistanceColor
+    d.Distance.Font = Drawing.Fonts.UI
+    d.Distance.Visible = false
+    d.HealthBar.Thickness = 1
+    d.HealthBar.Filled = true
+    d.HealthBar.Transparency = 1
+    d.HealthBar.Visible = false
+    d.HealthOutline.Thickness = 1
+    d.HealthOutline.Filled = true
+    d.HealthOutline.Transparency = 1
+    d.HealthOutline.Color = Color3.new(0, 0, 0)
+    d.HealthOutline.Visible = false
 end
+
+local function remove(player)
+    if Drawings[player] then
+        for _, drawing in pairs(Drawings[player]) do
+            drawing:Remove()
+        end
+        Drawings[player] = nil
+    end
+end
+
+Players.PlayerAdded:Connect(create)
+Players.PlayerRemoving:Connect(remove)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    create(player)
+end
+
+RunService.RenderStepped:Connect(function()
+    for player, d in pairs(Drawings) do
+        local character = player.Character
+        local hrp = character and character:FindFirstChild("HumanoidRootPart")
+        local head = character and character:FindFirstChild("Head")
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+        local visible = hrp and head and humanoid and humanoid.Health > 0
+
+        if visible and Config.TeamCheck and player.Team == LocalPlayer.Team then
+            visible = false
+        end
+
+        local distance = 0
+        if visible then
+            distance = (Camera.CFrame.Position - hrp.Position).Magnitude
+            if distance > Config.MaxDistance then
+                visible = false
+            end
+        end
+
+        if not visible then
+            d.Box.Visible = false
+            d.BoxOutline.Visible = false
+            d.Name.Visible = false
+            d.Distance.Visible = false
+            d.HealthBar.Visible = false
+            d.HealthOutline.Visible = false
+            continue
+        end
+
+        local headPos, headOn = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+        local rootPos, rootOn = Camera:WorldToViewportPoint(hrp.Position - Vector3.new(0, 3, 0))
+
+        if not (headOn and rootOn) then
+            d.Box.Visible = false
+            d.BoxOutline.Visible = false
+            d.Name.Visible = false
+            d.Distance.Visible = false
+            d.HealthBar.Visible = false
+            d.HealthOutline.Visible = false
+            continue
+        end
+
+        local height = math.abs(headPos.Y - rootPos.Y)
+        local width = height / 2
+        local color = Config.BoxColor
+        if player.Team and LocalPlayer.Team and player.Team ~= LocalPlayer.Team then
+            color = Config.EnemyColor
+        end
+
+        if Config.Box then
+            d.Box.Size = Vector2.new(width, height)
+            d.Box.Position = Vector2.new(headPos.X - width / 2, headPos.Y)
+            d.Box.Color = color
+            d.Box.Visible = true
+
+            d.BoxOutline.Size = Vector2.new(width + 2, height + 2)
+            d.BoxOutline.Position = Vector2.new(headPos.X - width / 2 - 1, headPos.Y - 1)
+            d.BoxOutline.Visible = true
+        else
+            d.Box.Visible = false
+            d.BoxOutline.Visible = false
+        end
+
+        if Config.Name then
+            d.Name.Text = player.Name
+            d.Name.Position = Vector2.new(headPos.X, headPos.Y - 16)
+            d.Name.Visible = true
+        else
+            d.Name.Visible = false
+        end
+
+        if Config.Distance then
+            d.Distance.Text = string.format("[%d]", math.floor(distance))
+            d.Distance.Position = Vector2.new(headPos.X, headPos.Y + height + 2)
+            d.Distance.Visible = true
+        else
+            d.Distance.Visible = false
+        end
+
+        if Config.Health then
+            local pct = humanoid.Health / humanoid.MaxHealth
+            local barH = height * pct
+            local barW = 2
+
+            d.HealthOutline.Size = Vector2.new(barW + 2, height + 2)
+            d.HealthOutline.Position = Vector2.new(headPos.X - width / 2 - 6, headPos.Y - 1)
+            d.HealthOutline.Visible = true
+
+            d.HealthBar.Size = Vector2.new(barW, barH)
+            d.HealthBar.Position = Vector2.new(headPos.X - width / 2 - 5, headPos.Y + (height - barH))
+            if pct > 0.6 then
+                d.HealthBar.Color = Color3.fromRGB(0, 255, 0)
+            elseif pct > 0.3 then
+                d.HealthBar.Color = Color3.fromRGB(255, 255, 0)
+            else
+                d.HealthBar.Color = Color3.fromRGB(255, 0, 0)
+            end
+            d.HealthBar.Visible = true
+        else
+            d.HealthBar.Visible = false
+            d.HealthOutline.Visible = false
+        end
+    end
+end)
